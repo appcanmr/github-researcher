@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitHub Researcher — Daily Trending Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid #30363d; padding-bottom: 1rem; flex-wrap: wrap; gap: 1rem; }
+  .brand { display: flex; align-items: center; gap: 0.8rem; }
+  .brand-icon { font-size: 2rem; }
+  .brand h1 { font-size: 1.5rem; color: #58a6ff; }
+  .brand span { font-size: 0.85rem; color: #8b949e; }
+  .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem; }
+  .last-updated { color: #8b949e; font-size: 0.85rem; }
+  .refresh-btn { background: #238636; color: #fff; border: none; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; text-decoration: none; }
+  .refresh-btn:hover { background: #2ea043; }
+  .badge { background: #1f6feb; color: #fff; font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 12px; }
+  .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid #30363d; padding-bottom: 0; flex-wrap: wrap; }
+  .tab { background: transparent; border: none; color: #8b949e; padding: 0.6rem 1.2rem; cursor: pointer; font-size: 0.95rem; border-bottom: 2px solid transparent; transition: all 0.2s; }
+  .tab:hover { color: #e6edf3; }
+  .tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .stat-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.2rem; text-align: center; }
+  .stat-value { font-size: 2rem; font-weight: 700; color: #58a6ff; }
+  .stat-label { font-size: 0.8rem; color: #8b949e; margin-top: 0.3rem; }
+  .section-title { font-size: 1.1rem; color: #f0f6fc; margin: 1.5rem 0 1rem; border-left: 3px solid #58a6ff; padding-left: 0.7rem; }
+  .repo-list { display: flex; flex-direction: column; gap: 0.5rem; }
+  .repo-item { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 0.9rem 1rem; display: flex; align-items: flex-start; gap: 1rem; transition: border-color 0.2s; }
+  .repo-item:hover { border-color: #58a6ff; }
+  .repo-rank { color: #484f58; font-size: 0.85rem; min-width: 24px; }
+  .repo-main { flex: 1; min-width: 0; }
+  .repo-name { color: #58a6ff; text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+  .repo-name:hover { text-decoration: underline; }
+  .repo-desc { color: #8b949e; font-size: 0.82rem; margin-top: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .repo-meta { display: flex; gap: 0.8rem; align-items: center; font-size: 0.82rem; color: #8b949e; min-width: 120px; justify-content: flex-end; flex-wrap: wrap; }
+  .repo-meta .stars { color: #e3b341; }
+  .repo-meta .lang { }
+  .focus-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .focus-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.2rem; }
+  .focus-card h3 { color: #58a6ff; font-size: 1rem; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem; }
+  .focus-card ul { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; }
+  .focus-card li { font-size: 0.85rem; color: #8b949e; }
+  .focus-card a { color: #58a6ff; text-decoration: none; }
+  .focus-card a:hover { text-decoration: underline; }
+  .lang-tag { font-size: 0.72rem; background: #1f6feb22; color: #58a6ff; padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid #1f6feb44; }
+  .daily-list { display: flex; flex-direction: column; gap: 0.5rem; }
+  .daily-item { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 0.8rem 1rem; display: flex; justify-content: space-between; align-items: center; }
+  .daily-item a { color: #58a6ff; text-decoration: none; font-size: 0.9rem; }
+  .daily-item a:hover { text-decoration: underline; }
+  .daily-item .date { color: #8b949e; font-size: 0.82rem; }
+  .no-data { color: #484f58; text-align: center; padding: 3rem; font-size: 0.95rem; }
+  footer { margin-top: 3rem; text-align: center; color: #484f58; font-size: 0.8rem; border-top: 1px solid #21262d; padding-top: 1.5rem; }
+  footer a { color: #58a6ff; text-decoration: none; }
+  @media (max-width: 600px) { .container { padding: 1rem; } .repo-item { flex-direction: column; gap: 0.4rem; } .repo-meta { justify-content: flex-start; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="brand">
+      <span class="brand-icon">🔬</span>
+      <div>
+        <h1>GitHub Researcher</h1>
+        <span>Daily AI-curated GitHub Trending analysis</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="last-updated" id="lastUpdated">Loading...</span>
+      <a href="https://github.com/appcanmr/github-researcher/actions/workflows/daily-update.yml" target="_blank" class="refresh-btn">⚡ Trigger Update</a>
+    </div>
+  </header>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value" id="totalRepos">—</div>
+      <div class="stat-label">Trending Repos</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="targetLangCount">—</div>
+      <div class="stat-label">Target Languages</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">5</div>
+      <div class="stat-label">Languages Tracked</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">4</div>
+      <div class="stat-label">Focus Areas</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('overview')">🏠 Overview</button>
+    <button class="tab" onclick="showTab('daily')">📅 Daily Reports</button>
+    <button class="tab" onclick="showTab('ai')">🤖 AI / ML</button>
+    <button class="tab" onclick="showTab('devtools')">🛠 Dev Tools</button>
+    <button class="tab" onclick="showTab('web')">🌐 Web</button>
+    <button class="tab" onclick="showTab('cloud')">☁️ Cloud / DevOps</button>
+  </div>
+
+  <div id="tab-overview" class="tab-content active">
+    <h2 class="section-title">🔥 Top Stars Today</h2>
+    <div class="repo-list" id="topRepos">Loading...</div>
+    <h2 class="section-title">📂 By Focus Area</h2>
+    <div class="focus-cards" id="focusCards">Loading...</div>
+  </div>
+
+  <div id="tab-daily" class="tab-content">
+    <h2 class="section-title">📅 Daily Reports</h2>
+    <div class="daily-list" id="dailyList">Loading...</div>
+  </div>
+
+  <div id="tab-ai" class="tab-content">
+    <h2 class="section-title">🤖 AI / Machine Learning / LLM</h2>
+    <div class="repo-list" id="aiRepos">Loading...</div>
+  </div>
+
+  <div id="tab-devtools" class="tab-content">
+    <h2 class="section-title">🛠 Developer Tools / CLI / IDE</h2>
+    <div class="repo-list" id="devtoolsRepos">Loading...</div>
+  </div>
+
+  <div id="tab-web" class="tab-content">
+    <h2 class="section-title">🌐 Web Frameworks / Frontend</h2>
+    <div class="repo-list" id="webRepos">Loading...</div>
+  </div>
+
+  <div id="tab-cloud" class="tab-content">
+    <h2 class="section-title">☁️ Cloud / DevOps / Container</h2>
+    <div class="repo-list" id="cloudRepos">Loading...</div>
+  </div>
+
+  <footer>
+    Powered by <a href="https://github.com/appcanmr/github-researcher">github-researcher</a>
+    · Data refreshed daily at 08:00 Beijing time via GitHub Actions
+  </footer>
+</div>
+
+<script>
+const FOCUS_AREAS = {
+  ai: ['ai', 'llm', 'gpt', 'language model', 'neural', 'deep learning', 'transformer', 'diffusion', 'stable diffusion', 'chatbot', 'rag', 'vector db', 'embedding', 'ollama', 'vllm', 'openai', 'gemini', 'claude'],
+  devtools: ['cli', 'tool', 'devtool', 'ide', 'editor', 'debugger', 'profiler', 'testing', 'ci/cd', 'pipeline', 'build tool', 'lint', 'formatter'],
+  web: ['react', 'vue', 'angular', 'svelte', 'next', 'nuxt', 'astro', 'vite', 'webpack', 'frontend', 'web framework', 'ui', 'css', 'html', 'tailwind', 'bootstrap'],
+  cloud: ['kubernetes', 'k8s', 'docker', 'terraform', 'ansible', 'aws', 'gcp', 'azure', 'devops', 'cloud native', 'container', 'serverless', 'lambda', 'helm', 'istio'],
+};
+
+function classify(name, desc) {
+  const text = (name + ' ' + desc).toLowerCase();
+  const matched = [];
+  for (const [area, kws] of Object.entries(FOCUS_AREAS)) {
+    if (kws.some(k => text.includes(k))) matched.push(area);
+  }
+  return matched.length ? matched : ['other'];
+}
+
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelector(`[onclick="showTab('${id}')"]`).classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+}
+
+function renderRepos(containerId, repos) {
+  const el = document.getElementById(containerId);
+  if (!repos || repos.length === 0) {
+    el.innerHTML = '<div class="no-data">No data yet. Run the daily update to fetch trending repos.</div>';
+    return;
+  }
+  el.innerHTML = repos.map((r, i) => `
+    <div class="repo-item">
+      <span class="repo-rank">${i + 1}</span>
+      <div class="repo-main">
+        <a class="repo-name" href="https://github.com/${r.name}" target="_blank">${r.name}</a>
+        <div class="repo-desc">${r.description || 'No description'}</div>
+      </div>
+      <div class="repo-meta">
+        <span class="stars">⭐ ${r.stars.toLocaleString()}</span>
+        ${r.language ? `<span class="lang-tag">${r.language}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadData() {
+  try {
+    // Try to load today's JSON data
+    const today = new Date().toISOString().split('T')[0];
+    const resp = await fetch(`daily/${today}.json`);
+    if (!resp.ok) throw new Error('No data yet');
+    const data = await resp.json();
+    const repos = data.repositories || [];
+    const filtered = data.filtered_repositories || [];
+
+    document.getElementById('totalRepos').textContent = repos.length;
+    document.getElementById('targetLangCount').textContent = filtered.length;
+    document.getElementById('lastUpdated').textContent = `Last updated: ${today}`;
+
+    // Top repos
+    const top10 = [...repos].sort((a, b) => b.stars - a.stars).slice(0, 10);
+    renderRepos('topRepos', top10);
+
+    // By focus area
+    const areaData = { ai: [], devtools: [], web: [], cloud: [] };
+    for (const r of repos) {
+      const areas = classify(r.name, r.description);
+      for (const a of areas) {
+        if (a in areaData && areaData[a].length < 10) areaData[a].push(r);
+      }
+    }
+
+    const areaLabels = { ai: '🤖 AI / ML / LLM', devtools: '🛠 Dev Tools', web: '🌐 Web / Frontend', cloud: '☁️ Cloud / DevOps' };
+    document.getElementById('focusCards').innerHTML = Object.entries(areaData)
+      .filter(([_, rs]) => rs.length > 0)
+      .map(([area, rs]) => `
+        <div class="focus-card">
+          <h3>${areaLabels[area]}</h3>
+          <ul>
+            ${rs.slice(0, 5).map(r => `
+              <li>
+                <a href="https://github.com/${r.name}" target="_blank">${r.name}</a>
+                <span style="color:#e3b341"> ⭐${r.stars.toLocaleString()}</span>
+                ${r.language ? `<span class="lang-tag">${r.language}</span>` : ''}
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+      `).join('');
+
+    renderRepos('aiRepos', areaData.ai.slice(0, 15));
+    renderRepos('devtoolsRepos', areaData.devtools.slice(0, 15));
+    renderRepos('webRepos', areaData.web.slice(0, 15));
+    renderRepos('cloudRepos', areaData.cloud.slice(0, 15));
+
+  } catch (e) {
+    document.getElementById('lastUpdated').textContent = 'No data yet — trigger workflow to fetch';
+    document.getElementById('topRepos').innerHTML = '<div class="no-data">No trending data available yet. Trigger the workflow to fetch data.</div>';
+    ['focusCards', 'dailyList', 'aiRepos', 'devtoolsRepos', 'webRepos', 'cloudRepos'].forEach(id => {
+      document.getElementById(id).innerHTML = '<div class="no-data">No data yet.</div>';
+    });
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
