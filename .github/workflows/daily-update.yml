@@ -1,0 +1,49 @@
+name: Daily GitHub Trending Update
+
+on:
+  schedule:
+    # Run at 00:00 UTC daily (08:00 Beijing time)
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Fetch trending data
+        run: python scripts/fetch_trending.py
+
+      - name: Generate reports
+        run: python scripts/generate_report.py
+
+      - name: Commit and push data
+        run: |
+          git config --local user.email "github-researcher[bot]@users.noreply.github.com"
+          git config --local user.name "GitHub Researcher Bot"
+          git add daily/ indexes/ docs/daily/
+          git diff --staged --quiet || git commit -m "Daily update: $(date +%Y-%m-%d)"
+          git push
+
+      - name: Deploy to GitHub Pages
+        if: github.event_name == 'schedule'
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages
+          # Pages served from docs/ directory
